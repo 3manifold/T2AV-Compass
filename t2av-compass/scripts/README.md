@@ -191,17 +191,6 @@ conda remove -n t2av-aesthetic --all
 # Run script again to recreate
 ```
 
-### GPU Requirements
-
-| Metric | Min VRAM | Recommended VRAM |
-|--------|----------|------------------|
-| VA (Aesthetic) | 4 GB | 8 GB |
-| VT (DOVER) | 6 GB | 12 GB |
-| AA (AudioBox) | 4 GB | 8 GB |
-| SQ (NISQA) | 2 GB | 4 GB |
-| T-V, T-A, A-V (ImageBind) | 8 GB | 16 GB |
-| DeSync (Synchformer) | 6 GB | 12 GB |
-| LS (LatentSync) | 8 GB | 12 GB |
 
 ## 📝 Notes
 

@@ -177,8 +177,10 @@ brew install ffmpeg
 1. **克隆仓库**
 
 ```bash
-git clone https://github.com/NJU-LINK/T2AV-Compass.git
+git clone --recurse-submodules https://github.com/NJU-LINK/T2AV-Compass.git
 cd T2AV-Compass
+git submodule sync --recursive
+git submodule update --init --recursive
 ```
 
 2. **准备数据**
@@ -384,6 +386,11 @@ python eval_realism.py \
 
 - `zhecao@smail.nju.edu.cn`
 - `liujiaheng@nju.edu.cn`
+
+## 仓库维护
+
+- Submodule 与推送检查清单: [docs/REPO_MAINTENANCE.md](docs/REPO_MAINTENANCE.md)
+- 代码目录说明: [t2av-compass/README.md](t2av-compass/README.md)
 
 ---
 

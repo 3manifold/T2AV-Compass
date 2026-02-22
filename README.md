@@ -111,8 +111,10 @@ brew install ffmpeg
 1. **Clone the repository**
 
 ```bash
-git clone https://github.com/NJU-LINK/T2AV-Compass.git
+git clone --recurse-submodules https://github.com/NJU-LINK/T2AV-Compass.git
 cd T2AV-Compass
+git submodule sync --recursive
+git submodule update --init --recursive
 ```
 
 2. **Prepare your data**
@@ -318,6 +320,11 @@ If you find this work useful, please cite:
 
 - `zhecao@smail.nju.edu.cn`
 - `liujiaheng@nju.edu.cn`
+
+## Repository Maintenance
+
+- Submodule and push checklist: [docs/REPO_MAINTENANCE.md](docs/REPO_MAINTENANCE.md)
+- Code directory guide: [t2av-compass/README.md](t2av-compass/README.md)
 
 ---
 
