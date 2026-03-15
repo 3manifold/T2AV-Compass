@@ -34,8 +34,8 @@
 | | VA (Video Aesthetic) | 通过 LAION-Aesthetic V2.5 评估高层感知属性 |
 | **音频质量** | AA (Audio Aesthetic) | PQ 与 CU 的均值（感知质量与内容有用性） |
 | | SQ (Speech Quality) | 基于 NISQA 的语音质量 |
-| **跨模态对齐** | T-A | 通过 CLAP 的文本-音频对齐 |
-| | T-V | 通过 VideoCLIP-XL-V2 的文本-视频对齐 |
+| **跨模态对齐** | T-A | 通过 ImageBind 的文本-音频对齐 |
+| | T-V | 通过 ImageBind 的文本-视频对齐 |
 | | A-V | 通过 ImageBind 的音频-视频对齐 |
 | | DS (DeSync) | 时间同步误差（越低越好） |
 | | LS (LatentSync) | 说话人脸场景的唇形同步质量 |
@@ -91,7 +91,7 @@
 
 ## 🔧 客观评测：环境配置与使用
 
-客观指标（VT、VA、PQ、CU、T-V、T-A、A-V、DeSync、LatentSync 等）的评测代码位于 **`t2av-compass/`** 目录。详细说明见 [readme.md](readme.md)，此处为简要步骤。
+客观指标（VT、VA、AA、SQ、T-V、T-A、A-V、DeSync、LatentSync 等）的评测代码位于 **`t2av-compass/`** 目录。详细说明见 [readme.md](readme.md)，此处为简要步骤。
 
 ### 环境要求
 
@@ -155,9 +155,173 @@ bash scripts/batch_eval_all.sh input Data/prompts.json Output
 
 ## 🚀 快速开始
 
+### 环境要求
+
+- **操作系统**: Linux (推荐 Ubuntu 18.04+) 或 macOS
+- **GPU**: NVIDIA GPU，支持 CUDA
+- **CUDA**: 版本 11.8 或更高
+- **Conda**: 安装 Miniconda 或 Anaconda
+- **Python**: 3.8 - 3.10
+- **FFmpeg**: 用于音频提取
+
+```bash
+# 安装 FFmpeg (Ubuntu/Debian)
+sudo apt-get update && sudo apt-get install -y ffmpeg
+
+# 安装 FFmpeg (macOS)
+brew install ffmpeg
+```
+
+### 安装步骤
+
+1. **克隆仓库**
+
+```bash
+git clone --recurse-submodules https://github.com/NJU-LINK/T2AV-Compass.git
+cd T2AV-Compass
+git submodule sync --recursive
+git submodule update --init --recursive
+```
+
+2. **准备数据**
+
+组织你生成的视频和对应的提示词：
+
+```
+T2AV-Compass/
+├── input/                    # 你生成的视频（放在仓库根目录）
+│   ├── video_001.mp4
+│   ├── video_002.mp4
+│   └── ...
+└── t2av-compass/            # 评测代码
+    ├── Data/
+    │   └── prompts.json     # 对应的提示词
+    ├── scripts/             # 评测脚本
+    └── Objective/           # 指标实现
+```
+
+`prompts.json` 格式示例：
+
+```json
+[
+  {
+    "index": 1,
+    "prompt": "一个人在公园散步，有鸟鸣声",
+    "video_prompt": "一个人在公园散步",
+    "audio_prompt": "公园里的鸟鸣声",
+    "speech_prompt": []
+  }
+]
+```
+
+### 使用方法
+
+#### 方式一：运行完整评测（所有指标）
+
+一次性运行所有客观指标：
+
+```bash
+cd t2av-compass
+bash scripts/eval_all_metrics.sh ../input Data/prompts.json ../Output
+```
+
+**参数说明：**
+- `../input`: 视频目录路径（相对于 t2av-compass/）
+- `Data/prompts.json`: 提示词文件路径（相对于 t2av-compass/）
+- `../Output`: 输出目录（相对于 t2av-compass/）
+
+这将评测：
+- **视频质量**: VT（技术质量）、VA（美学质量）
+- **音频质量**: AA（音频美学 = PQ 与 CU 的均值）、SQ（语音质量，使用 NISQA）
+- **跨模态对齐**: T-V（文本-视频）、T-A（文本-音频）、A-V（音频-视频语义对齐）、DeSync（音视频时间同步）、LS（说话人脸的唇形同步）
+
+结果将保存在 `Output/` 目录下的 JSON 文件中。
+
+#### 方式二：运行单个指标
+
+独立评测特定指标：
+
+```bash
+# 视频美学 (VA)
+bash scripts/eval_video_aesthetic.sh ../input ../Output
+
+# 视频技术质量 (VT) 
+bash scripts/eval_video_technical.sh ../input ../Output
+
+# 音频美学 (AA = PQ 与 CU 的均值)
+bash scripts/eval_audio_aesthetic.sh ../input ../Output
+
+# 语音质量 (SQ，使用 NISQA)
+bash scripts/eval_speech_quality.sh ../input ../Output
+
+# 文本-视频对齐 (T-V)
+bash scripts/eval_text_video_alignment.sh ../input Data/prompts.json ../Output
+
+# 文本-音频对齐 (T-A)
+bash scripts/eval_text_audio_alignment.sh ../input Data/prompts.json ../Output
+
+# 音频-视频对齐 (A-V)
+bash scripts/eval_audio_video_alignment.sh ../input ../Output
+
+# 音视频同步 (DeSync)
+bash scripts/eval_av_sync.sh ../input ../Output
+
+# 唇形同步质量 (LatentSync) - 用于有说话人脸的视频
+bash scripts/eval_lipsync.sh ../input ../Output
+```
+
+**注意：** 所有路径都是相对于 `t2av-compass/` 目录。
+
+每个脚本会：
+- 首次运行时自动创建所需的 conda 环境
+- 安装必要的依赖包
+- 执行评测
+- 将结果保存为 JSON 文件
+
+#### 环境管理
+
+脚本会自动为每个指标创建独立的 conda 环境，避免依赖冲突：
+
+- `t2av-aesthetic`: 视频美学质量
+- `t2av-dover`: 视频技术质量
+- `t2av-audiobox`: 音频美学质量
+- `t2av-nisqa`: 语音质量
+- `t2av-imagebind`: 跨模态对齐
+- `t2av-synchformer`: 音视频同步
+
+手动激活环境：
+
+```bash
+conda activate t2av-aesthetic
+```
+
+### 输出格式
+
+所有指标输出统一的 JSON 格式：
+
+```json
+{
+  "metric": "指标名称",
+  "summary": {
+    "mean_score": 0.85,
+    "...": "..."
+  },
+  "results": [
+    {
+      "file": "input/video_001.mp4",
+      "score": 0.87,
+      "...": "..."
+    }
+  ]
+}
+```
+
+### 示例工作流
+
 ```python
 import json
 
+# 1. 加载提示词
 with open("prompts_with_checklist.json", "r", encoding="utf-8") as f:
     data = json.load(f)
 
@@ -167,7 +331,34 @@ print(f"视频提示词: {item['video_prompt'][:200]}...")
 print(f"音频提示词: {item['audio_prompt']}")
 print(f"语音提示词: {item['speech_prompt']}")
 print(f"Checklist 维度: {list(item['checklist_info'].keys())}")
+
+# 2. 运行评测后，加载结果
+with open("Output/evaluation_summary.json", "r") as f:
+    summary = json.load(f)
+    print(f"评测完成时间: {summary['timestamp']}")
+    print(f"指标: {list(summary['metrics'].keys())}")
 ```
+
+## 📊 主观评测（MLLM-as-a-Judge）
+
+使用 MLLM 评测脚本进行主观指标评测（指令跟随和真实感）：
+
+```bash
+cd t2av-compass/Subjective
+
+# 评测指令跟随能力
+python eval_checklist.py \
+  --video_dir ../input \
+  --prompts_file ../Data/prompts.json \
+  --output_file ../Output/instruction_following.json
+
+# 评测真实感
+python eval_realism.py \
+  --video_dir ../input \
+  --output_file ../Output/realism.json
+```
+
+详细说明请参考 [主观评测指南](t2av-compass/Subjective/README.md)。
 
 ## 📈 引用
 
@@ -195,6 +386,11 @@ print(f"Checklist 维度: {list(item['checklist_info'].keys())}")
 
 - `zhecao@smail.nju.edu.cn`
 - `liujiaheng@nju.edu.cn`
+
+## 仓库维护
+
+- Submodule 与推送检查清单: [docs/REPO_MAINTENANCE.md](docs/REPO_MAINTENANCE.md)
+- 代码目录说明: [t2av-compass/README.md](t2av-compass/README.md)
 
 ---
 
