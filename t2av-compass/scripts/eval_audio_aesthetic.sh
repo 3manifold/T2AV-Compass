@@ -1,74 +1,23 @@
 #!/usr/bin/env bash
-# Audio Aesthetic (AA) Evaluation Script
-# Measures PQ (Perceptual Quality) and CU (Content Usefulness) via AudioBox
-# AA is computed as the mean of PQ and CU
 set -euo pipefail
-
-INPUT_DIR="${1:-input}"
-OUTPUT_DIR="${2:-Output}"
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-
-echo "=========================================="
-echo "Audio Aesthetic (AA) Evaluation"
-echo "=========================================="
-echo "Input:  ${INPUT_DIR}"
-echo "Output: ${OUTPUT_DIR}"
-echo ""
-
-# Check conda
-if ! command -v conda >/dev/null 2>&1; then
-  echo "ERROR: conda not found. Please install Miniconda/Anaconda first."
-  exit 1
+SETUP_ONLY=0
+if [[ ${1:-} == --setup-only ]]; then
+  SETUP_ONLY=1
+  shift
 fi
-
-CONDA_BASE="$(conda info --base)"
-source "${CONDA_BASE}/etc/profile.d/conda.sh"
-
-# Create conda environment if not exists
-ENV_NAME="t2av-audiobox"
-if ! conda env list | grep -q "^${ENV_NAME} "; then
-  echo "Creating conda environment: ${ENV_NAME}"
-  conda create -n "${ENV_NAME}" python=3.10 -y
-  conda activate "${ENV_NAME}"
-  
-  # Install dependencies
-  pushd "${PROJECT_ROOT}/Objective/Audio/audiobox-aesthetics" >/dev/null
-  pip install -e .
-  pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu118
-  popd >/dev/null
-else
-  conda activate "${ENV_NAME}"
+source $(cd $(dirname ${BASH_SOURCE[0]}) && pwd)/common.sh
+ensure_cache_layout
+ensure_conda
+ensure_audiobox_env
+if [[ ${SETUP_ONLY} -eq 1 ]]; then
+  echo t2av-audiobox ready
+  exit 0
 fi
-
-# Step 1: Extract audio from videos
-OUTPUT_DIR_ABS="${PROJECT_ROOT}/${OUTPUT_DIR}"
-mkdir -p "${OUTPUT_DIR_ABS}/audio_wav"
-
-echo "Step 1: Extracting audio from videos..."
-bash "${PROJECT_ROOT}/Objective/Audio/audiobox-aesthetics/extract_audio.sh" \
-  "${PROJECT_ROOT}/${INPUT_DIR}" \
-  "${OUTPUT_DIR_ABS}/audio_wav"
-
-if [[ $(find "${OUTPUT_DIR_ABS}/audio_wav" -type f -name "*.wav" | wc -l) -eq 0 ]]; then
-  echo "✗ No audio files extracted"
-  exit 1
-fi
-
-# Step 2: Run AudioBox aesthetics
-echo "Step 2: Computing AudioBox aesthetics (PQ, CU)..."
-python "${PROJECT_ROOT}/scripts/run_audiobox_batch.py" \
-  --audio_dir "${OUTPUT_DIR_ABS}/audio_wav" \
-  --output "${OUTPUT_DIR_ABS}/audio_aesthetic.json"
-
-if [[ -f "${OUTPUT_DIR_ABS}/audio_aesthetic.json" ]]; then
-  echo "✓ Results saved to: ${OUTPUT_DIR_ABS}/audio_aesthetic.json"
-  echo "  Note: AA = (PQ + CU) / 2"
-else
-  echo "✗ No results generated"
-  exit 1
-fi
-
-conda deactivate
-echo "Done: Audio Aesthetic evaluation completed"
+INPUT_DIR=$(resolve_path ${1:-input})
+OUTPUT_DIR=$(resolve_path ${2:-Output})
+AUDIO_DIR=${OUTPUT_DIR}/audio_wav
+require_dir ${INPUT_DIR}
+require_video_files ${INPUT_DIR}
+mkdir -p ${OUTPUT_DIR}
+bash ${CODE_ROOT}/scripts/extract_audio.sh ${INPUT_DIR} ${AUDIO_DIR}
+conda_run_in t2av-audiobox python ${CODE_ROOT}/scripts/run_audiobox_batch.py --audio_dir ${AUDIO_DIR} --output ${OUTPUT_DIR}/audio_aesthetic.json --ckpt ${CACHE_ROOT}/weights/audiobox-aesthetics/checkpoint.pt

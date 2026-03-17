@@ -1,49 +1,58 @@
 # t2av-compass Codebase Guide
 
-This document explains the structure and daily usage of the `t2av-compass/` code directory.
+This directory contains the objective and subjective evaluation code.
 
-## Directory Structure
+## Recommended Entry Points
 
-- `Data/`: Prompt JSON files used for objective/subjective evaluation.
-- `Input/`: Local input videos for evaluation (project-local convention).
-- `Output/`: Evaluation outputs (JSON results, extracted audio, summaries).
-- `Objective/`: Objective metrics and third-party metric implementations.
-- `Subjective/`: MLLM-as-a-Judge scripts.
-- `scripts/`: Unified shell entry points for metric execution.
+If you want the validated Linux objective pipeline, do not start from `scripts/eval_all_metrics.sh` directly. Use the repository-root wrappers instead:
+
+```bash
+cd T2AV-Compass
+bash setup_objective.sh
+bash run_objective_batch.sh
+```
+
+Default validated paths:
+
+- input videos: `input/`
+- prompts: `t2av-compass/Data/prompts.json`
+- outputs: `Output/`
+- cache: `.cache/t2av-cache/`
 
 ## Objective Evaluation
 
-Main entry:
+The root wrapper calls into `scripts/eval_all_metrics.sh` with repository-relative paths.
+
+You can still run individual metrics for debugging from the repository root:
 
 ```bash
-bash scripts/eval_all_metrics.sh <input_dir> <prompts_json> <output_dir>
+bash t2av-compass/scripts/eval_video_aesthetic.sh input Output
+bash t2av-compass/scripts/eval_video_technical.sh input Output
+bash t2av-compass/scripts/eval_audio_aesthetic.sh input Output
+bash t2av-compass/scripts/eval_speech_quality.sh input Output
+bash t2av-compass/scripts/eval_text_video_alignment.sh input t2av-compass/Data/prompts.json Output
+bash t2av-compass/scripts/eval_text_audio_alignment.sh input t2av-compass/Data/prompts.json Output
+bash t2av-compass/scripts/eval_audio_video_alignment.sh input Output
+bash t2av-compass/scripts/eval_av_sync.sh input Output
+bash t2av-compass/scripts/eval_lipsync.sh input Output
 ```
 
-Examples:
-
-```bash
-bash scripts/eval_all_metrics.sh Input Data/prompts.json Output
-bash scripts/eval_video_aesthetic.sh Input Output
-bash scripts/eval_speech_quality.sh Input Output
-```
-
-Detailed script usage:
-
-- `scripts/README.md`
+Each metric manages its own conda environment automatically.
 
 ## Subjective Evaluation
 
-Run from `Subjective/`:
+Subjective evaluation remains separate from the objective wrapper flow. Run it manually from `Subjective/`.
 
-```bash
-cd Subjective
-python eval_checklist.py --video_dir ../Input --prompts_file ../Data/prompts.json --output_file ../Output/instruction_following.json
-python eval_realism.py --video_dir ../Input --output_file ../Output/realism.json
-```
+## Directory Summary
 
-## Submodule-Backed Components
+- `Data/`: prompt JSON files
+- `Objective/`: third-party metric implementations and wrappers
+- `Subjective/`: MLLM-as-a-Judge scripts
+- `scripts/`: shell entry points used by the root wrappers
 
-The following directories are git submodules and must remain synchronized with root `.gitmodules`:
+## Maintenance Notes
+
+The following directories are submodule-backed and should be cloned with `--recurse-submodules`:
 
 - `Objective/Audio/NISQA`
 - `Objective/Audio/audiobox-aesthetics`
@@ -51,5 +60,10 @@ The following directories are git submodules and must remain synchronized with r
 - `Objective/Video/DOVER`
 - `Objective/Video/aesthetic-predictor-v2-5`
 
-If you see submodule errors, follow `../docs/REPO_MAINTENANCE.md`.
+Environment overrides:
 
+- `T2AV_CACHE_ROOT`: move model/cache files outside the repository
+- `T2AV_CONDA_ROOT`: move Conda env and package caches outside the repository
+- `T2AV_CONDA_EXE`: point to a specific Conda installation if `conda` is not on `PATH`
+- `HF_ENDPOINT`: switch to a Hugging Face mirror when needed. In mainland China, prefer `https://hf-mirror.com`.
+- `T2AV_GITHUB_MIRROR_PREFIX`: prefix GitHub downloads with a mirror URL when needed
