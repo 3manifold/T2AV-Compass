@@ -1,0 +1,12 @@
+.ipynb_checkpoints/
+__pycache__/
+*.py[cod]
+Output/
+Output*/
+input/
+checkpoints/
+t2av-compass/Objective/Similarity/ImageBind-main/.checkpoints
+t2av-compass/Objective/Similarity/Synchformer-main/vis/
+t2av-compass/Objective/Video/DOVER/pretrained_weights/
+
+.cache/

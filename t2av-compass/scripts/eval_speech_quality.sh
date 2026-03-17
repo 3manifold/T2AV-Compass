@@ -1,94 +1,43 @@
 #!/usr/bin/env bash
-# Speech Quality (SQ) Evaluation Script
-# Measures speech quality via NISQA
 set -euo pipefail
-
-INPUT_DIR="${1:-input}"
-OUTPUT_DIR="${2:-Output}"
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-
-echo "=========================================="
-echo "Speech Quality (SQ) Evaluation"
-echo "=========================================="
-echo "Input:  ${INPUT_DIR}"
-echo "Output: ${OUTPUT_DIR}"
-echo ""
-
-# Check conda
-if ! command -v conda >/dev/null 2>&1; then
-  echo "ERROR: conda not found. Please install Miniconda/Anaconda first."
-  exit 1
+SETUP_ONLY=0
+if [[ ${1:-} == --setup-only ]]; then
+  SETUP_ONLY=1
+  shift
 fi
-
-CONDA_BASE="$(conda info --base)"
-source "${CONDA_BASE}/etc/profile.d/conda.sh"
-
-# Create conda environment if not exists
-ENV_NAME="t2av-nisqa"
-NISQA_DIR="${PROJECT_ROOT}/Objective/Audio/NISQA"
-
-if ! conda env list | grep -q "^${ENV_NAME} "; then
-  echo "Creating conda environment: ${ENV_NAME}"
-  
-  if [[ -f "${NISQA_DIR}/env.yml" ]]; then
-    conda env create -f "${NISQA_DIR}/env.yml" -n "${ENV_NAME}"
-  else
-    conda create -n "${ENV_NAME}" python=3.8 -y
-    conda activate "${ENV_NAME}"
-    pip install torch torchaudio librosa pandas
-  fi
-else
-  conda activate "${ENV_NAME}"
+source $(cd $(dirname ${BASH_SOURCE[0]}) && pwd)/common.sh
+ensure_cache_layout
+ensure_conda
+ensure_nisqa_env
+if [[ ${SETUP_ONLY} -eq 1 ]]; then
+  echo t2av-nisqa ready
+  exit 0
 fi
-
-# Extract audio if not already done
-OUTPUT_DIR_ABS="${PROJECT_ROOT}/${OUTPUT_DIR}"
-mkdir -p "${OUTPUT_DIR_ABS}/audio_wav"
-
-if [[ $(find "${OUTPUT_DIR_ABS}/audio_wav" -type f -name "*.wav" | wc -l) -eq 0 ]]; then
-  echo "Extracting audio from videos..."
-  bash "${PROJECT_ROOT}/Objective/Audio/audiobox-aesthetics/extract_audio.sh" \
-    "${PROJECT_ROOT}/${INPUT_DIR}" \
-    "${OUTPUT_DIR_ABS}/audio_wav"
-fi
-
-# Run NISQA prediction
-echo "Running NISQA speech quality prediction..."
-pushd "${NISQA_DIR}" >/dev/null
-
-# Create file list
-find "${OUTPUT_DIR_ABS}/audio_wav" -name "*.wav" > "${OUTPUT_DIR_ABS}/audio_list.txt"
-
-python run_predict.py \
-  --mode predict_file \
-  --pretrained_model weights/nisqa.tar \
-  --deg "${OUTPUT_DIR_ABS}/audio_list.txt" \
-  --output_dir "${OUTPUT_DIR_ABS}/nisqa_output"
-
-popd >/dev/null
-
-# Convert to JSON format
-if [[ -f "${OUTPUT_DIR_ABS}/nisqa_output/NISQA_results.csv" ]]; then
-  python -c "
-import pandas as pd
+INPUT_DIR=$(resolve_path ${1:-input})
+OUTPUT_DIR=$(resolve_path ${2:-Output})
+AUDIO_DIR=${OUTPUT_DIR}/audio_wav
+require_dir ${INPUT_DIR}
+require_video_files ${INPUT_DIR}
+mkdir -p ${OUTPUT_DIR}/nisqa_output
+bash ${CODE_ROOT}/scripts/extract_audio.sh ${INPUT_DIR} ${AUDIO_DIR}
+conda_run_in t2av-nisqa python ${CODE_ROOT}/Objective/Audio/NISQA/run_predict.py --mode predict_dir --pretrained_model ${CODE_ROOT}/Objective/Audio/NISQA/weights/nisqa.tar --data_dir ${AUDIO_DIR} --output_dir ${OUTPUT_DIR}/nisqa_output
+${PYTHON_BIN} - <<PY
+import csv
 import json
-df = pd.read_csv('${OUTPUT_DIR_ABS}/nisqa_output/NISQA_results.csv')
-results = df.to_dict('records')
-output = {
-    'metric': 'nisqa_speech_quality',
-    'summary': {'SQ_mean': float(df['mos_pred'].mean())} if 'mos_pred' in df.columns else {},
-    'results': results
+from pathlib import Path
+csv_path = Path(${OUTPUT_DIR@Q}) / 'nisqa_output' / 'NISQA_results.csv'
+out_path = Path(${OUTPUT_DIR@Q}) / 'speech_quality.json'
+with csv_path.open('r', encoding='utf-8', newline='') as f:
+    rows = list(csv.DictReader(f))
+values = [float(row['mos_pred']) for row in rows if row.get('mos_pred') not in (None, '')]
+payload = {
+    'metric': 'speech_quality',
+    'summary': {
+        'SQ_mean': float(sum(values) / len(values)) if values else 0.0,
+        'total_samples': len(rows),
+    },
+    'results': rows,
 }
-with open('${OUTPUT_DIR_ABS}/speech_quality.json', 'w') as f:
-    json.dump(output, f, indent=2)
-print('✓ Results saved to: ${OUTPUT_DIR_ABS}/speech_quality.json')
-"
-else
-  echo "✗ No results generated"
-  exit 1
-fi
-
-conda deactivate
-echo "Done: Speech Quality evaluation completed"
+out_path.write_text(json.dumps(payload, indent=2), encoding='utf-8')
+print(f'Saved results to {out_path}')
+PY
