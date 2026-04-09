@@ -139,7 +139,7 @@ def compute_and_report_metrics(results_data):
             if criteria_dim not in buckets:
                 buckets[criteria_dim] = []
             raw_score = res.get('score', -1)
-            if raw_score == -1: 
+            if raw_score == -1 or raw_score is None: 
                 continue
             
             norm_score = (raw_score - 1) / 4.0
